@@ -132,7 +132,6 @@ const CreateAttributes = ({ token }: { token: string }) => {
       if (res.ok && result.status === 200) {
         toast.success('Attribute deleted successfully')
 
-        // remove from UI immediately
         setAttributeList(prev => prev.filter(attr => attr.id !== selectedAttribute.id))
       } else {
         toast.error(result.message || 'Failed to delete attribute')
@@ -165,7 +164,7 @@ const CreateAttributes = ({ token }: { token: string }) => {
                   control={control}
                   rules={{
                     required: 'Attribute name is required',
-                    minLength: { value: 3, message: 'Minimum 3 characters required' }
+                    minLength: { value: 1, message: 'Minimum 1 characters required' }
                   }}
                   render={({ field }) => (
                     <CustomTextField

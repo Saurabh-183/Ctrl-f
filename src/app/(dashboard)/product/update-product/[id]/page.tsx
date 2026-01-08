@@ -33,6 +33,5 @@ export default async function Page({ params }: Props) {
 
   const data = product.data ?? []
 
-  // @ts-ignore
   return <AddProduct token={token} productData={data} />
 }

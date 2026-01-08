@@ -21,10 +21,6 @@ import {
   TableContainer
 } from '@mui/material'
 
-/* =======================
-   Types
-======================= */
-
 type Attribute = {
   attributeName: string
   attributeValue: string
@@ -43,10 +39,6 @@ interface ConfirmPriceUpdateModalProps {
   onCancel: () => void
   onConfirm: () => void
 }
-
-/* =======================
-   Helpers
-======================= */
 
 const getStatus = (prev: number, next: number) => {
   if (next > prev) return 'Increased'
@@ -70,18 +62,12 @@ const formatPrice = (value?: number | string | null) => {
   return `₹${num.toLocaleString()}`
 }
 
-/* =======================
-   Component
-======================= */
-
 export default function ConfirmPriceUpdateModal({ open, rows, onCancel, onConfirm }: ConfirmPriceUpdateModalProps) {
   console.log('rows: ', rows)
 
-  /* Pagination */
   const [page, setPage] = React.useState(0)
   const [rowsPerPage, setRowsPerPage] = React.useState(5)
 
-  /* Extract unique attribute columns */
   const attributeColumns = React.useMemo(() => {
     const set = new Set<string>()
 
@@ -90,10 +76,8 @@ export default function ConfirmPriceUpdateModal({ open, rows, onCancel, onConfir
     return Array.from(set)
   }, [rows])
 
-  /* Paginated data */
   const paginatedRows = rows.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
 
-  /* Summary */
   const increased = rows.filter(r => r.newPrice > r.oldPrice).length
   const decreased = rows.filter(r => r.newPrice < r.oldPrice).length
   const unchanged = rows.length - increased - decreased
@@ -101,7 +85,7 @@ export default function ConfirmPriceUpdateModal({ open, rows, onCancel, onConfir
   return (
     <Dialog
       open={open}
-      maxWidth='xl'
+      maxWidth='md'
       fullWidth
       onClose={(event, reason) => {
         if (reason === 'backdropClick' || reason === 'escapeKeyDown') return
@@ -171,7 +155,9 @@ export default function ConfirmPriceUpdateModal({ open, rows, onCancel, onConfir
                     <TableCell sx={{ fontWeight: 500, color: 'primary.main' }}>{row.productCode}</TableCell>
 
                     {attributeColumns.map(attr => {
-                      const value = row.attributeJson.find(a => a.attributeName === attr)?.attributeValue ?? '-'
+                      const value =
+                        row.attributeJson.find(a => a.attributeName?.toUpperCase() === attr.toUpperCase())
+                          ?.attributeValue ?? '-'
 
                       return <TableCell key={attr}>{value}</TableCell>
                     })}
@@ -208,7 +194,6 @@ export default function ConfirmPriceUpdateModal({ open, rows, onCancel, onConfir
           rowsPerPageOptions={[5, 10, 25]}
         />
 
-        {/* ✅ Summary (RESTORED) */}
         <Box mt={2} p={1.5} display='flex' gap={4} bgcolor='grey.50' borderRadius={2}>
           <Typography variant='caption'>Total Products: {rows.length}</Typography>
           <Typography variant='caption' color='success.main'>

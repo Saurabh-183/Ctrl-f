@@ -37,15 +37,18 @@ interface Props {
   onClose: () => void
 }
 
+// const getAttributeValue = (attrs: AttributeItem[], name: string) =>
+//   attrs.find(a => a.attributeName === name)?.attributeValue ?? '-'
+
 const getAttributeValue = (attrs: AttributeItem[], name: string) =>
-  attrs.find(a => a.attributeName === name)?.attributeValue ?? '-'
+  attrs.find(a => a.attributeName?.toUpperCase() === name?.toUpperCase())?.attributeValue ?? '-'
 
 export default function AttributePriceModal({ open, loading, attributes, onClose }: Props) {
   const theme = useTheme()
 
-  const attributeNames = attributes?.[0]?.attributeJson.map(a => a.attributeName) ?? []
+  // const attributeNames = attributes?.[0]?.attributeJson.map(a => a.attributeName) ?? []
+  const attributeNames = attributes?.[0]?.attributeJson.map(a => a.attributeName.toUpperCase()) ?? []
 
-  // Pagination state
   const [page, setPage] = useState(0)
   const [rowsPerPage, setRowsPerPage] = useState(5)
 
@@ -75,7 +78,6 @@ export default function AttributePriceModal({ open, loading, attributes, onClose
         }
       }}
     >
-      {/* Close */}
       <IconButton onClick={onClose} sx={{ position: 'absolute', top: 12, right: 12 }}>
         <i className='tabler-x' />
       </IconButton>

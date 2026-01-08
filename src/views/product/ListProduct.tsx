@@ -1,21 +1,15 @@
 'use client'
 
-// React Imports
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { redirect, useRouter } from 'next/navigation'
 
 import { toast } from 'react-toastify'
-
-// MUI Imports
 import Card from '@mui/material/Card'
 import TablePagination from '@mui/material/TablePagination'
 import type { TextFieldProps } from '@mui/material/TextField'
 import { Box, Button, Checkbox, Grid, IconButton, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material'
-
-// Third-party Imports
 import classnames from 'classnames'
-
 import type {
   Cell,
   CellContext,
@@ -40,32 +34,22 @@ import {
   getSortedRowModel,
   useReactTable
 } from '@tanstack/react-table'
-
 import { rankItem } from '@tanstack/match-sorter-utils'
-
 import ExcelJS from 'exceljs'
-
 import { saveAs } from 'file-saver'
 
 import DeleteConfirmModal from '@/components/model/DeleteConfirmModal'
-
-// Component Imports
 import CustomTextField from '@core/components/mui/TextField'
 import TablePaginationComponent from '../../components/TablePaginationComponent'
-
-// Icon Imports
 import ChevronRight from '@menu/svg/ChevronRight'
-
-// Style Imports
 import styles from '@core/styles/table.module.css'
 import { COLORS } from '@/utils/colors'
 import type { ProductData } from '@/services/product'
 import FileUploader from '@/components/FileUploader'
 import ConfirmPriceUpdateModal from '@/components/model/ConfirmPriceUpdateModal'
 import AttributePriceModal from '@/components/model/AttributePriceModal'
+import PriceHistoryModal from '@/components/model/PriceHistoryModal'
 import { formatDate } from '@/utils/date'
-
-// ---------- Types ----------
 
 export interface AttributeItem {
   attributeName: string
@@ -174,15 +158,11 @@ const Filter = ({ column, table }: { column: Column<any, unknown>; table: Table<
 
 const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
   const router = useRouter()
-
   const controllerRef = useRef<AbortController | null>(null)
-
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState<string>('')
-
   const [menuRowData, setMenuRowData] = useState<ProductData | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
   const [anchorElImportProductMenu, setAnchorElImportProductMenu] = useState<null | HTMLElement>(null)
   const [anchorElUploadImages, setAnchorElUploadImages] = useState<null | HTMLElement>(null)
@@ -190,16 +170,28 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
   const [priceExcelFile, setPriceExcelFile] = useState<File | null>(null)
   const [previewPriceData, setPreviewPriceData] = useState<ProductPriceItem[]>([])
   const [openDialog, setOpenDialog] = useState(false)
-
-  // 1. Fixed: Destructured 'dialogData' properly so it can be used in JSX
   const [dialogData, setDialogData] = useState<DialogData>(null)
-
   const [loadingDialog, setLoadingDialog] = useState(false)
+  const [priceHistoryOpen, setPriceHistoryOpen] = useState(false)
+  const [priceHistoryData, setPriceHistoryData] = useState<any[]>([])
+  const [rowSelection, setRowSelection] = useState({})
 
-  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, product: ProductData) => {
+  const handleMenuOpen1 = (event: React.MouseEvent<HTMLElement>, product: ProductData) => {
     setAnchorEl(event.currentTarget)
     setMenuRowData(product)
   }
+
+  // const handleMenuOpen = (
+  //   event: React.MouseEvent<HTMLButtonElement, MouseEvent>,
+  //   product: React.SetStateAction<ProductData | null>,
+  //   row: { toggleSelected: (arg0: boolean) => void } | undefined
+  // ) => {
+  //
+  //   // @ts-ignore
+  //   row.toggleSelected(true)
+  //   setMenuRowData(product)
+  //   setAnchorEl(event.currentTarget)
+  // }
 
   const handleMenuOpenImportItems = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorElImportProductMenu(e.currentTarget)
@@ -244,7 +236,6 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
     }
 
     const file = files[0]
-
     const formData = new FormData()
 
     formData.append('file', file)
@@ -260,18 +251,26 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
 
       const result = await res.json()
 
-      console.log('result: ', result)
-
       if (!res.ok) {
         throw new Error(result?.message || 'Upload failed')
       }
 
       if (result.status === 200) {
-        setPreviewPriceData(result.data)
-        setConfirmPriceModalOpen(true)
-      }
+        const normalizedData: ProductPriceItem[] = result.data.map((item: any) => ({
+          productCode: item.productCode,
 
-      setPriceExcelFile(file)
+          attributeJson: (item.attributeJson || []).map((attr: any) => ({
+            attributeName: attr.attributeName?.toUpperCase().trim(),
+            attributeValue: attr.attributeValue
+          })),
+          oldPrice: Number(item.oldPrice ?? item.previousPrice ?? 0),
+          newPrice: Number(item.newPrice ?? item.price ?? 0)
+        }))
+
+        setPreviewPriceData(normalizedData)
+        setConfirmPriceModalOpen(true)
+        setPriceExcelFile(file)
+      }
     } catch (error: any) {
       toast.error(error.message || 'Excel upload failed')
     } finally {
@@ -388,15 +387,16 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
     }
   }
 
-  const handleRowClick = async (productId: number) => {
+  const handleRowClick = async (product: ProductData) => {
     controllerRef.current?.abort()
     controllerRef.current = new AbortController()
 
-    try {
-      setLoadingDialog(true)
-      setOpenDialog(true)
+    setMenuRowData(product) // ✅ Add this line
+    setLoadingDialog(true)
+    setOpenDialog(true)
 
-      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/product/product-detail-list?id=${productId}`, {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL}/product/product-detail-list?id=${product.id}`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`
@@ -404,15 +404,16 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
         signal: controllerRef.current.signal
       })
 
-      if (!res.ok) {
-        throw new Error('Failed to fetch product data')
-      }
+      if (!res.ok) throw new Error('Failed to fetch product data')
 
       const json = await res.json()
 
       if (json.status === 200) {
         const mappedAttributes: AttributeRow[] = (json.data.attributes || []).map((attr: any) => ({
-          attributeJson: attr.attributeJson || [],
+          attributeJson: (attr.attributeJson || []).map((a: any) => ({
+            attributeName: a.attributeName.toUpperCase().trim(),
+            attributeValue: a.attributeValue
+          })),
           price: Number(attr.price ?? 0),
           oldPrice: Number(attr.oldPrice ?? 0)
         }))
@@ -434,20 +435,82 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
     handleMenuClose()
   }
 
+  const openPriceHistory = async (productCode: string) => {
+    setPriceHistoryOpen(true)
+    setPriceHistoryData([])
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/product/product-price-list?productCode=${encodeURIComponent(productCode)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      )
+
+      const json = await res.json()
+
+      if (json.status === 200 && json.data?.length) {
+        const product = json.data[0]
+
+        const flattened = product.batches.map((batch: any) => ({
+          productName: product.productType,
+          productCode: product.productCode,
+          attributes: batch.attributeJson || [],
+          oldPrice: batch.oldPrice,
+          newPrice: batch.newPrice,
+          updatedAt: batch.createdAt
+        }))
+
+        setPriceHistoryData(flattened)
+      } else {
+        toast.error('No price history found')
+      }
+    } catch {
+      toast.error('Failed to load price history')
+    }
+  }
+
+  // @ts-ignore
+  // @ts-ignore
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const columns = useMemo<ColumnDef<ProductData, any>[]>(
     () => [
       {
         id: 'select',
-        header: ({ table }: { table: Table<ProductData> }) => (
+
+        // header: ({ table }: { table: Table<ProductData> }) => (
+        //   <Checkbox
+        //     checked={table.getIsAllRowsSelected()}
+        //     indeterminate={table.getIsSomeRowsSelected()}
+        //     onChange={table.getToggleAllRowsSelectedHandler()}
+        //   />
+        // ),
+
+        header: () => null,
+        cell: ({ row }) => (
           <Checkbox
-            checked={table.getIsAllRowsSelected()}
-            indeterminate={table.getIsSomeRowsSelected()}
-            onChange={table.getToggleAllRowsSelectedHandler()}
+            checked={row.getIsSelected()}
+            onChange={() => {
+              table.resetRowSelection()
+              row.toggleSelected(true)
+            }}
           />
         ),
-        cell: ({ row }: { row: Row<ProductData> }) => (
-          <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
-        ),
+
+        // cell: ({ row }: { row: Row<ProductData> }) => (
+        //   <Checkbox checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} />
+        // ),
+
+        // cell: ({ row }) => (
+        //   <Checkbox
+        //     checked={row.getIsSelected()}
+        //     onChange={() => {
+        //       table.resetRowSelection()
+        //       row.toggleSelected(true)
+        //     }}
+        //   />
+        // ),
+
         enableSorting: false,
         enableColumnFilter: false
       },
@@ -510,7 +573,7 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
         cell: ({ row }: { row: Row<ProductData> }) => (
           <IconButton
             size='small'
-            onClick={e => handleMenuOpen(e, row.original)}
+            onClick={e => handleMenuOpen1(e, row.original)}
             aria-label='Actions'
             sx={{ color: '#232F6F' }}
           >
@@ -518,8 +581,7 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
           </IconButton>
         )
       })
-    ],
-    []
+    ]
   )
 
   const table = useReactTable({
@@ -530,8 +592,10 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
     },
     state: {
       columnFilters,
-      globalFilter
+      globalFilter,
+      rowSelection
     },
+    onRowSelectionChange: setRowSelection,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
     globalFilterFn: fuzzyFilter,
@@ -543,6 +607,16 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
     getFacetedUniqueValues: getFacetedUniqueValues(),
     getFacetedMinMaxValues: getFacetedMinMaxValues()
   })
+
+  const selectedRows = table.getSelectedRowModel().rows
+
+  const selectedProduct = selectedRows[0]?.original ?? null
+
+  // const handleMenuOpen = (event, product, row) => {
+  //   row.toggleSelected(true)
+  //   setMenuRowData(product)
+  //   setAnchorEl(event.currentTarget)
+  // }
 
   const handleExportProducts = async (products: ProductData[]) => {
     try {
@@ -574,9 +648,7 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
           productCode: item.productCode,
           unitsPerCarton: item.unitsPerCarton,
           totalWeightPerCarton: item.totalWeightPerCarton,
-          description: item.description
-            ? item.description.replace(/<[^>]*>/g, '') // remove HTML
-            : '',
+          description: item.description ? item.description.replace(/<[^>]*>/g, '') : '',
           createdAt: formatDate(item.createdAt)
         })
       })
@@ -601,23 +673,56 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
       <div className='flex flex-col gap-4'>
         <Card variant='outlined' sx={{ p: 4 }}>
           <Grid container spacing={2}>
-            <Grid item xs={12}>
-              <Typography variant='h5' mb={2}>
-                Product Master ({data.length})
-              </Typography>
-            </Grid>
+            <Grid container alignItems='center' justifyContent='space-between' mb={2}>
+              <Grid item>
+                <Typography variant='h5' sx={{ textTransform: 'uppercase' }}>
+                  Product Master ({data.length})
+                </Typography>
+              </Grid>
 
-            <Grid item xs={12} container alignItems='center' justifyContent='space-between'>
-              <Grid item xs={12} sm={3}>
+              <Grid item xs={12} sm={8} md={6} display='flex' gap={2} justifyContent='flex-end'>
                 <DebouncedInput
                   value={globalFilter ?? ''}
                   onChange={value => setGlobalFilter(String(value))}
                   placeholder='Search Brands...'
                   className='w-full'
                 />
-              </Grid>
 
-              <Grid item xs={12} sm={9} display='flex' justifyContent='flex-end' gap={2}>
+                <Button
+                  variant='contained'
+                  className='w-60'
+                  startIcon={<i className='tabler-history' />}
+                  disabled={!selectedProduct}
+                  sx={{
+                    backgroundColor: COLORS.green,
+                    color: '#fff',
+                    '&:hover': {
+                      backgroundColor: '#00b200',
+                      opacity: 0.9
+                    }
+                  }}
+                  onClick={() => {
+                    if (!selectedProduct) return
+                    openPriceHistory(selectedProduct.productCode)
+                  }}
+                >
+                  Price History
+                </Button>
+              </Grid>
+            </Grid>
+
+            <Grid item xs={12} container alignItems='center' justifyContent='space-between'>
+              <Grid item xs={12} sm={12} display='flex' justifyContent='flex-end' gap={2}>
+                <Button
+                  variant='contained'
+                  startIcon={<i className='tabler-download' />}
+                  onClick={() => {
+                    downloadProductSample()
+                  }}
+                >
+                  Sample File
+                </Button>
+
                 <Button
                   variant='outlined'
                   startIcon={<i className='tabler-download' style={{ transform: 'rotate(180deg)' }} />}
@@ -637,7 +742,6 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
                 <Button
                   variant='outlined'
                   startIcon={<i className='tabler-download' />}
-                  endIcon={<i className='tabler-caret-down-filled' />}
                   onClick={handleMenuOpenImportItems}
                 >
                   Import Items
@@ -667,61 +771,73 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
           <div className='overflow-x-auto'>
             <table className={styles.table}>
               <thead>
-              {table.getHeaderGroups().map((headerGroup: HeaderGroup<ProductData>) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map(header => (
-                    <th key={header.id}>
-                      {header.isPlaceholder ? null : (
-                        <>
-                          <div
-                            className={classnames({
-                              'flex items-center': header.column.getIsSorted(),
-                              'cursor-pointer select-none': header.column.getCanSort()
-                            })}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: <ChevronRight fontSize='1.25rem' className='-rotate-90' />,
-                              desc: <ChevronRight fontSize='1.25rem' className='rotate-90' />
-                            }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
-                          </div>
-                          {header.column.getCanFilter() && <Filter column={header.column} table={table} />}
-                        </>
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              ))}
+                {table.getHeaderGroups().map((headerGroup: HeaderGroup<ProductData>) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map(header => (
+                      <th key={header.id}>
+                        {header.isPlaceholder ? null : (
+                          <>
+                            <div
+                              className={classnames({
+                                'flex items-center': header.column.getIsSorted(),
+                                'cursor-pointer select-none': header.column.getCanSort()
+                              })}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: <ChevronRight fontSize='1.25rem' className='-rotate-90' />,
+                                desc: <ChevronRight fontSize='1.25rem' className='rotate-90' />
+                              }[header.column.getIsSorted() as 'asc' | 'desc'] ?? null}
+                            </div>
+                            {header.column.getCanFilter() && <Filter column={header.column} table={table} />}
+                          </>
+                        )}
+                      </th>
+                    ))}
+                  </tr>
+                ))}
               </thead>
 
               {table.getFilteredRowModel().rows.length === 0 ? (
                 <tbody>
-                <tr>
-                  <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
-                    No data available
-                  </td>
-                </tr>
+                  <tr>
+                    <td colSpan={table.getVisibleFlatColumns().length} className='text-center'>
+                      No data available
+                    </td>
+                  </tr>
                 </tbody>
               ) : (
                 <tbody>
-                {table.getRowModel().rows.map((row: Row<ProductData>) => (
-                  <tr key={row.id} onClick={() => handleRowClick(row.original.id)} style={{ cursor: 'pointer' }}>
-                    {row.getVisibleCells().map((cell: Cell<ProductData, unknown>) => (
-                      <td
-                        key={cell.id}
-                        onClick={e => {
-                          // Prevent row click for checkbox / action column
-                          if (cell.column.id === 'select' || cell.column.id === 'id') {
-                            e.stopPropagation()
-                          }
-                        }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                  {table.getRowModel().rows.map((row: Row<ProductData>) => (
+
+                    // <tr key={row.id}
+                    // onClick={() => handleRowClick(row.original)}
+                    // style={{ cursor: 'pointer' }}>
+
+                    <tr
+                      key={row.id}
+                      onClick={() => {
+                        table.resetRowSelection()
+                        row.toggleSelected(true)
+                        handleRowClick(row.original)
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {row.getVisibleCells().map((cell: Cell<ProductData, unknown>) => (
+                        <td
+                          key={cell.id}
+                          onClick={e => {
+                            if (cell.column.id === 'select' || cell.column.id === 'id') {
+                              e.stopPropagation()
+                            }
+                          }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
                 </tbody>
               )}
             </table>
@@ -787,17 +903,6 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
           horizontal: 'right'
         }}
       >
-        {/* Download sample */}
-        <MenuItem
-          onClick={() => {
-            downloadProductSample()
-          }}
-        >
-          <ListItemIcon>
-            <i className='tabler-download' />
-          </ListItemIcon>
-          Download Sample File product
-        </MenuItem>
 
         {/* Upload Excel */}
         <MenuItem disableRipple sx={{ cursor: 'default' }}>
@@ -867,6 +972,8 @@ const ListProduct: React.FC<ListProductProps> = ({ data, token }) => {
         onClose={() => setOpenDialog(false)}
         attributes={dialogData}
       />
+
+      <PriceHistoryModal open={priceHistoryOpen} data={priceHistoryData} onClose={() => setPriceHistoryOpen(false)} />
     </>
   )
 }

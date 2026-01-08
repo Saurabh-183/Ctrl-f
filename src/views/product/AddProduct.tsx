@@ -64,7 +64,7 @@ interface AddProductProps {
 
 export interface AttributeItem {
   attributeName: string
-  attributeValue: string
+  attributeValue: string | number | null
 }
 
 export interface ProductAttribute {
@@ -85,7 +85,7 @@ const RichTextEditor = dynamic(() => import('@/components/RichTextEditor'), {
   ssr: false
 })
 
-const FileUploader = dynamic(() => import('@/components/FileUploader'), {
+const FileUploader = dynamic(( ) => import('@/components/FileUploader'), {
   ssr: false
 })
 
@@ -101,7 +101,6 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
   if (!API_URL) {
     throw new Error('NEXT_PUBLIC_BASE_URL is not defined')
   }
-
 
   useEffect(() => {
     if (!productData && attributeList.length && attributesState.length === 0) {
@@ -179,7 +178,9 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
 
           return {
             attributeName: baseAttr.attributeName,
-            attributeValue: found?.attributeValue ?? ''
+
+            // attributeValue: found?.attributeValue ?? ''
+            attributeValue: String(found?.attributeValue ?? '')
           }
         })
 
@@ -283,8 +284,10 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
   }
 
   const isRowComplete = (row: ProductAttribute) => {
-    const attributesFilled = row.attributeJson.every(attr => attr.attributeValue.trim() !== '')
-    const priceFilled = row.price !== '' && Number(row.price) > 0
+    // const attributesFilled = row.attributeJson.every(attr => attr.attributeValue.trim() !== '')
+    const attributesFilled = row.attributeJson.every(attr => String(attr.attributeValue ?? '').trim() !== '')
+
+    const priceFilled = row.price !== '' && Number(row.price) >= 0
 
     return attributesFilled && priceFilled
   }
@@ -415,12 +418,15 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
 
                   {/* File Uploader */}
                   <Grid item xs={12} sm={6}>
+                    <Typography variant='body2' fontWeight={500} mb={1}>
+                      Product Images
+                    </Typography>
+
                     <Controller
                       name='files'
                       control={control}
                       render={({ field }) => (
                         <FileUploader
-                          multiple
                           value={field.value || []}
                           onChange={files => field.onChange(files)}
                           maxFiles={5}
@@ -463,6 +469,7 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
                   )}
                 />
               </Grid>
+
               {/* Cartons Per SKU */}
               <Grid item xs={12} sm={6}>
                 <Controller
@@ -483,6 +490,7 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
                   )}
                 />
               </Grid>
+
               {/* Units */}
               <Grid item xs={12} sm={6}>
                 <Controller
@@ -611,7 +619,9 @@ const AddProduct: React.FC<AddProductProps> = ({ token, productData }) => {
                         <TableCell key={header}>
                           <TextField
                             size='small'
-                            value={attr?.attributeValue || ''}
+
+                            // value={attr?.attributeValue || ''}
+                            value={String(attr?.attributeValue ?? '')}
                             onChange={e => {
                               const val = e.target.value
 
